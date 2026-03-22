@@ -2555,6 +2555,7 @@ func doCompress(cliCtx *cli.Context) error {
 
 	src := bufio.NewReaderSize(os.Stdin, int(128*datasize.MB))
 	srcF := cliCtx.String("from")
+	var totalWords int
 	if srcF != "" {
 		decompressor, err := seg.NewDecompressor(srcF)
 		if err != nil {
@@ -2562,7 +2563,8 @@ func doCompress(cliCtx *cli.Context) error {
 		}
 		defer decompressor.Close()
 		defer decompressor.MadvSequential().DisableReadAhead()
-		log.Info("[compress] from", "from", srcF)
+		totalWords = decompressor.Count()
+		log.Info("[compress] from", "from", srcF, "words", totalWords)
 
 		var cleanup func()
 		src, cleanup = seg.Decompressor2bufio(decompressor)
@@ -2605,8 +2607,19 @@ func doCompress(cliCtx *cli.Context) error {
 	var snappyBuf, unSnappyBuf []byte
 	var concatBuf []byte
 	concatI := 0
+	var wordI int
+	logEvery := time.NewTicker(5 * time.Second)
+	defer logEvery.Stop()
 
 	if err := seg.Bufio2compressor(ctx, src, w, func(word []byte) ([]byte, error) {
+		if totalWords > 0 {
+			wordI++
+			select {
+			case <-logEvery.C:
+				logger.Info("[compress] reading", "file", filepath.Base(srcF), "words", fmt.Sprintf("%d/%d", wordI, totalWords), "progress", fmt.Sprintf("%.1f%%", 100*float64(wordI)/float64(totalWords)))
+			default:
+			}
+		}
 		if justPrint {
 			fmt.Printf("%x\n\n", word)
 			return nil, nil
@@ -2632,6 +2645,9 @@ func doCompress(cliCtx *cli.Context) error {
 		return word, nil
 	}); err != nil {
 		return err
+	}
+	if totalWords > 0 {
+		logger.Info("[compress] building dictionary", "file", filepath.Base(srcF), "words", wordI)
 	}
 	if err := c.Compress(); err != nil {
 		return err
