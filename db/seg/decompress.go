@@ -758,6 +758,22 @@ func (g *Getter) Count() int          { return g.d.Count() }
 func (g *Getter) FileName() string    { return g.fName }
 func (g *Getter) GetMetadata() []byte { return g.d.GetMetadata() }
 
+// WordLevelCompression returns the word-level compression flags from the file header (V2+),
+// or false if the file is V0/V1 (no word-level compression metadata).
+func (g *Getter) WordLevelCompression() (FileCompression, bool) {
+	if g.d.version < FileCompressionFormatV2 {
+		return 0, false
+	}
+	compression := CompressNone
+	if g.d.featureFlagBitmask.Has(WordLevelKeyCompressionEnabled) {
+		compression |= CompressKeys
+	}
+	if g.d.featureFlagBitmask.Has(WordLevelValCompressionEnabled) {
+		compression |= CompressVals
+	}
+	return compression, true
+}
+
 // nextPosClean aligns to the next byte boundary then reads the next position.
 func (g *Getter) nextPosClean() uint64 {
 	if g.dataBit > 0 {
