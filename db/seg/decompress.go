@@ -877,8 +877,10 @@ func (g *Getter) Size() int {
 	return len(g.data)
 }
 
-func (d *Decompressor) Count() int           { return int(d.wordsCount) }
-func (d *Decompressor) EmptyWordsCount() int { return int(d.emptyWordsCount) }
+func (d *Decompressor) Count() int                       { return int(d.wordsCount) }
+func (d *Decompressor) EmptyWordsCount() int             { return int(d.emptyWordsCount) }
+func (d *Decompressor) CompressionFormatVersion() uint8  { return d.version }
+func (d *Decompressor) CompressedPageValuesCount() uint8 { return d.compPageValuesCount }
 
 // MakeGetter creates an object that can be used to access superstrings in the decompressor's file
 // Getter is not thread-safe, but there can be multiple getters used simultaneously and concurrently
