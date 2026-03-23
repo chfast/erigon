@@ -516,6 +516,21 @@ func (d *Decompressor) DictLens() int                   { return d.dictLens }
 func (d *Decompressor) CompressedPageValuesCount() int  { return int(d.compPageValuesCount) }
 func (d *Decompressor) CompressionFormatVersion() uint8 { return d.version }
 
+// WordLevelCompression returns the word-level key/val compression flags from the file header.
+// ok=false means the file predates V2 and the header does not carry this information.
+func (d *Decompressor) WordLevelCompression() (c FileCompression, ok bool) {
+	if d.version < FileCompressionFormatV2 {
+		return CompressNone, false
+	}
+	if d.featureFlagBitmask.Has(WordLevelKeyCompressionEnabled) {
+		c |= CompressKeys
+	}
+	if d.featureFlagBitmask.Has(WordLevelValCompressionEnabled) {
+		c |= CompressVals
+	}
+	return c, true
+}
+
 func (d *Decompressor) Size() int64 {
 	return d.size
 }
