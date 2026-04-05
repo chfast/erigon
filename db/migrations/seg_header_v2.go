@@ -18,6 +18,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -247,9 +248,8 @@ var segCompressionAtV2 = map[string]seg.FileCompression{
 func smokeTestSegFile(path string, logger log.Logger) error {
 	dec, err := seg.NewDecompressor(path)
 	if err != nil {
-		// File may be absent or unreadable (e.g. commitment snapshots disabled).
-		logger.Warn("[seg_header_v2] smoke-test skip", "file", filepath.Base(path), "err", err)
-		return nil
+		err := fmt.Errorf("error creating decompressor: %v, %s", err, path)
+		panic(err)
 	}
 	defer dec.Close()
 

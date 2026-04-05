@@ -18,6 +18,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -90,8 +91,8 @@ func upgradeSegHeaderV1toV2Seg(path string, isCaplinDir bool, logger log.Logger)
 	base := filepath.Base(path)
 	d, err := seg.NewDecompressor(path)
 	if err != nil {
-		logger.Warn("[seg_header_v2_seg] skip", "file", base, "err", err)
-		return nil
+		err := fmt.Errorf("error creating decompressor: %v, %s", err, path)
+		panic(err)
 	}
 	version := d.CompressionFormatVersion()
 	d.Close()
