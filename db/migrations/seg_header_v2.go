@@ -248,8 +248,7 @@ var segCompressionAtV2 = map[string]seg.FileCompression{
 func smokeTestSegFile(path string, logger log.Logger) error {
 	dec, err := seg.NewDecompressor(path)
 	if err != nil {
-		err := fmt.Errorf("error creating decompressor: %v, %s", err, path)
-		panic(err)
+		return fmt.Errorf("error creating decompressor: %v, %s", err, path)
 	}
 	defer dec.Close()
 

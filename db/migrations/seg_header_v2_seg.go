@@ -91,8 +91,7 @@ func upgradeSegHeaderV1toV2Seg(path string, isCaplinDir bool, logger log.Logger)
 	base := filepath.Base(path)
 	d, err := seg.NewDecompressor(path)
 	if err != nil {
-		err := fmt.Errorf("error creating decompressor: %v, %s", err, path)
-		panic(err)
+		return fmt.Errorf("error creating decompressor: %v, %s", err, path)
 	}
 	version := d.CompressionFormatVersion()
 	d.Close()
