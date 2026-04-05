@@ -94,6 +94,8 @@ func upgradeSegHeaderV1toV2Seg(path string, isCaplinDir bool, logger log.Logger)
 		return fmt.Errorf("error creating decompressor: %v, %s", err, path)
 	}
 	version := d.CompressionFormatVersion()
+	pageCnt := d.CompressedPageValuesCount()
+	d.CompressedPageValuesCount()
 	d.Close()
 	if version < seg.FileCompressionFormatV1 {
 		return nil // V0: no header to patch
@@ -118,6 +120,9 @@ func upgradeSegHeaderV1toV2Seg(path string, isCaplinDir bool, logger log.Logger)
 	}
 
 	var bitmask seg.FeatureFlagBitmask
+	if pageCnt > 0 {
+		bitmask.Set(seg.PageLevelCompressionEnabled)
+	}
 	if fc.Has(seg.CompressKeys) {
 		bitmask.Set(seg.WordLevelKeyCompressionEnabled)
 	}
