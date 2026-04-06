@@ -551,7 +551,9 @@ func DumpBlobSidecarsRange(ctx context.Context, db kv.RoDB, storage blob_storage
 			}
 		}
 		if commitmentsCount == 0 {
-			w.Write(nil) //nolint:errcheck
+			if _, err := w.Write(nil); err != nil {
+				return err
+			}
 			continue
 		}
 		sidecars, found, err := storage.ReadBlobSidecars(ctx, i, blockRoot)
