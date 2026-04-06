@@ -248,7 +248,7 @@ var segCompressionAtV2 = map[string]seg.FileCompression{
 //
 // Reading only the first smokeTestMaxWords words keeps the migration fast even
 // on large snapshot sets, while still exercising the decompression path.
-const smokeTestMaxWords = 200 // 100 key-value pairs
+const smokeTestMaxWords = 2_000
 
 func smokeTestSegFile(path string, logger log.Logger) error {
 	dec, err := seg.NewDecompressor(path)
