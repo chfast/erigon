@@ -109,7 +109,7 @@ func upgradeSegHeaderV1toV2(path, ext string, logger log.Logger) error {
 
 	base := filepath.Base(path)
 	tag := segTag(base, ext)
-	fc := segCompressionAtV2[tag+ext] // zero value (CompressNone) if unknown
+	fc := segCompressionAtV2[tag+ext] // zero value if unknown; no key/value compression bits will be set
 
 	var bitmask seg.FeatureFlagBitmask
 	if pageCnt > 0 {
