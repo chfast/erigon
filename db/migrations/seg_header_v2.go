@@ -241,10 +241,15 @@ var segCompressionAtV2 = map[string]seg.FileCompression{
 	"tracesto.ef":   seg.CompressNone,
 }
 
-// smokeTestSegFile iterates every word in a single V2 file via NewReader, which
+// smokeTestSegFile reads a small prefix of a V2 file via NewReader, which
 // routes each word to Next() (huffman) or NextUncompressed() based on the
 // bitmask we just patched.  A wrong bitmask causes a word-boundary mismatch
 // and a panic, catching header corruption early.
+//
+// Reading only the first smokeTestMaxWords words keeps the migration fast even
+// on large snapshot sets, while still exercising the decompression path.
+const smokeTestMaxWords = 200 // 100 key-value pairs
+
 func smokeTestSegFile(path string, logger log.Logger) error {
 	dec, err := seg.NewDecompressor(path)
 	if err != nil {
@@ -260,12 +265,9 @@ func smokeTestSegFile(path string, logger log.Logger) error {
 	g := dec.MakeGetter()
 	r := seg.NewReader(g, seg.CompressNone) // NewReader reads WordLevelCompression from header
 	r.Reset(0)
-	var kbuf, vbuf []byte
-	for r.HasNext() {
-		kbuf, _ = r.Next(kbuf[:0])
-		if r.HasNext() {
-			vbuf, _ = r.Next(vbuf[:0])
-		}
+	var buf []byte
+	for i := 0; i < smokeTestMaxWords && r.HasNext(); i++ {
+		buf, _ = r.Next(buf[:0])
 	}
 	logger.Trace("[seg_header_v2] smoke-test ok", "file", filepath.Base(path))
 	return nil
