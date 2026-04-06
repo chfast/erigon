@@ -95,7 +95,6 @@ func upgradeSegHeaderV1toV2Seg(path string, isCaplinDir bool, logger log.Logger)
 	}
 	version := d.CompressionFormatVersion()
 	pageCnt := d.CompressedPageValuesCount()
-	d.CompressedPageValuesCount()
 	d.Close()
 	if version < seg.FileCompressionFormatV1 {
 		return nil // V0: no header to patch
