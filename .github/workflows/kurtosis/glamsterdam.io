@@ -33,4 +33,4 @@ additional_services: [spamoor, assertoor]
 assertoor_params:
   run_stability_check: true
   run_block_proposal_check: true
-  image: ethpandaops/assertoor:gloas-support-latest
+  image: ethpandaops/assertoor:qu0b-gloas-bals-v2
