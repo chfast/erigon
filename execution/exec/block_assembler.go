@@ -358,12 +358,6 @@ LOOP:
 		}
 	}
 
-	if ba.HasBAL() {
-		logger.Debug(fmt.Sprintf("[%s] BAL: AddTransactions done", logPrefix),
-			"includedTxs", len(ba.Txns), "nextTxnIdx", txnIdx,
-			"balIOLen", ba.balIO.Len())
-	}
-
 	return coalescedLogs, done, nil
 }
 
@@ -396,12 +390,6 @@ func (ba *BlockAssembler) AssembleBlock(stateReader state.StateReader, ibs *stat
 		ba.balIO = ba.balIO.Merge(ibs.TxIO())
 		ibs.ResetVersionedIO()
 		ba.BlockAccessList = ba.balIO.AsBlockAccessList()
-		logger.Debug("BAL: AssembleBlock done",
-			"block", header.Number.Uint64(),
-			"userTxs", len(ba.Txns),
-			"finalTxIndex", len(ba.Txns),
-			"balIOLen", ba.balIO.Len(),
-			"balAccounts", len(ba.BlockAccessList))
 		// Only embed the BAL hash in the header for Amsterdam+ chains.
 		// For pre-Amsterdam chains with ExperimentalBAL, the BAL is computed
 		// and validated but NOT included in the block header, because the

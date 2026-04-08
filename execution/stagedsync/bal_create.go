@@ -61,9 +61,7 @@ func ProcessBAL(tx kv.TemporalRwTx, h *types.Header, vio *state.VersionedIO, dat
 	if err := bal.ValidateMaxItems(h.GasLimit); err != nil {
 		return fmt.Errorf("%w, block %d: %w", rules.ErrInvalidBlock, blockNum, err)
 	}
-	log.Debug("bal", "blockNum", blockNum, "hash", bal.Hash(),
-		"computedAccounts", len(bal), "maxTxIndex", vio.Len()-1,
-		"blockHash", blockHash)
+	log.Debug("bal", "blockNum", blockNum, "hash", bal.Hash())
 	if h.BlockAccessListHash == nil {
 		return fmt.Errorf("block %d: missing block access list hash", blockNum)
 	}
@@ -96,75 +94,6 @@ func ProcessBAL(tx kv.TemporalRwTx, h *types.Header, vio *state.VersionedIO, dat
 	// in VersionMap.validateRead ensures deterministic parallel execution even
 	// without a stored BAL body (HasBAL=false), so the computed BAL is accurate.
 	if headerBALHash != bal.Hash() {
-		// Log per-tx IO stats from the VersionedIO to help diagnose index mismatches.
-		storedMatchesHeader := "no-stored-bal"
-		if dbBALBytes != nil {
-			if dbBAL2, decErr := types.DecodeBlockAccessListBytes(dbBALBytes); decErr == nil && dbBAL2 != nil {
-				storedMatchesHeader = fmt.Sprintf("%v", dbBAL2.Hash() == headerBALHash)
-			}
-		}
-		if vio != nil {
-			maxTx := vio.Len() - 1
-			log.Warn("BAL mismatch: blockIO stats",
-				"block", blockNum,
-				"blockHash", blockHash,
-				"maxTxIndex", maxTx,
-				"computedAccounts", len(bal),
-				"headerBALHash", headerBALHash,
-				"storedBALMatchesHeader", storedMatchesHeader,
-				"totalReads", vio.ReadCount(),
-				"totalWrites", vio.WriteCount())
-			// Log first few txIndex write counts
-			for ti := -1; ti <= min(maxTx, 5); ti++ {
-				ws := vio.WriteSet(ti)
-				rs := vio.ReadSet(ti)
-				log.Warn("BAL mismatch: txIO",
-					"block", blockNum,
-					"txIndex", ti,
-					"reads", rs.Len(),
-					"writes", len(ws))
-			}
-		}
-		// Log first few per-account balance/nonce index diffs
-		if dbBALBytes != nil {
-			if dbBAL2, decErr := types.DecodeBlockAccessListBytes(dbBALBytes); decErr == nil && dbBAL2 != nil {
-				diffCount := 0
-				ci, si := 0, 0
-				for ci < len(bal) && si < len(dbBAL2) && diffCount < 3 {
-					ca, sa := bal[ci], dbBAL2[si]
-					cmp := ca.Address.Cmp(sa.Address)
-					if cmp < 0 {
-						log.Warn("BAL mismatch: addr only in computed", "block", blockNum, "addr", ca.Address,
-							"balanceChanges", len(ca.BalanceChanges), "nonceChanges", len(ca.NonceChanges))
-						ci++
-						diffCount++
-					} else if cmp > 0 {
-						log.Warn("BAL mismatch: addr only in stored", "block", blockNum, "addr", sa.Address,
-							"balanceChanges", len(sa.BalanceChanges), "nonceChanges", len(sa.NonceChanges))
-						si++
-						diffCount++
-					} else {
-						// Same address — compare first balance/nonce index
-						if len(ca.BalanceChanges) > 0 && len(sa.BalanceChanges) > 0 &&
-							ca.BalanceChanges[0].Index != sa.BalanceChanges[0].Index {
-							log.Warn("BAL mismatch: balance index diff", "block", blockNum, "addr", ca.Address,
-								"computedIdx", ca.BalanceChanges[0].Index, "storedIdx", sa.BalanceChanges[0].Index,
-								"computedVal", fmt.Sprintf("0x%x", &ca.BalanceChanges[0].Value),
-								"storedVal", fmt.Sprintf("0x%x", &sa.BalanceChanges[0].Value))
-							diffCount++
-						}
-						if len(ca.NonceChanges) > 0 && len(sa.NonceChanges) > 0 &&
-							ca.NonceChanges[0].Index != sa.NonceChanges[0].Index {
-							log.Warn("BAL mismatch: nonce index diff", "block", blockNum, "addr", ca.Address,
-								"computedIdx", ca.NonceChanges[0].Index, "storedIdx", sa.NonceChanges[0].Index)
-							diffCount++
-						}
-						ci++
-						si++
-					}
-				}
-			}
-		}
 		// Log BAL debug strings so CI output captures the field-by-field diff
 		log.Warn("BAL mismatch: computed BAL", "block", blockNum, "hash", bal.Hash(), "debug", bal.DebugString())
 		if dbBALBytes != nil {
