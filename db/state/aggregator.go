@@ -59,7 +59,8 @@ import (
 type Aggregator struct {
 	db                kv.RoDB //TODO: remove this field. Accept `tx` and `db` from outside. But it must be field of `temporal.DB` - and only `temporal.DB` must pass it to us. App-Level code must call methods of `temporal.DB`
 	d                 [kv.DomainLen]*Domain
-	iis               []*InvertedIndex
+	iis               [kv.StandaloneIdxLen]*InvertedIndex
+	iisCount          int
 	dirs              datadir.Dirs
 	stepSize          uint64
 	stepsInFrozenFile uint64
@@ -209,7 +210,11 @@ func (a *Aggregator) RegisterII(cfg statecfg.InvIdxCfg, salt *uint32, dirs datad
 		return err
 	}
 	ii.salt.Store(salt)
-	a.iis = append(a.iis, ii)
+	if a.iisCount >= kv.StandaloneIdxLen {
+		return fmt.Errorf("too many standalone inverted indices: max %d", kv.StandaloneIdxLen)
+	}
+	a.iis[a.iisCount] = ii
+	a.iisCount++
 	return nil
 }
 
@@ -753,7 +758,7 @@ func (a *Aggregator) BuildMissedAccessors(ctx context.Context, workers int) erro
 
 type AggV3StaticFiles struct {
 	d    [kv.DomainLen]StaticFiles
-	ivfs []InvertedFiles
+	ivfs [kv.StandaloneIdxLen]InvertedFiles
 }
 
 // CleanupOnError - call it on collation fail. It's closing all files
@@ -784,7 +789,7 @@ func (a *Aggregator) buildFiles(ctx context.Context, step kv.Step) error {
 		txTo          = a.FirstTxNumOfStep(step + 1)
 		stepStartedAt = time.Now()
 
-		static          = &AggV3StaticFiles{ivfs: make([]InvertedFiles, len(a.iis))}
+		static          = &AggV3StaticFiles{}
 		closeCollations = true
 		collListMu      = sync.Mutex{}
 		collations      = make([]Collation, 0)
@@ -1081,9 +1086,9 @@ func (a *Aggregator) InvertedIdxTables(indices ...kv.InvertedIdx) (tables []stri
 }
 
 func (a *Aggregator) searchII(name kv.InvertedIdx) *InvertedIndex {
-	for _, ii := range a.iis {
-		if ii.Name == name {
-			return ii
+	for i := 0; i < a.iisCount; i++ {
+		if a.iis[i].Name == name {
+			return a.iis[i]
 		}
 	}
 	return nil
@@ -1374,8 +1379,8 @@ func (at *AggregatorRoTx) prune(ctx context.Context, tx kv.RwTx, limit uint64, a
 		}
 	}
 
-	stats := make([]*InvertedIndexPruneStat, len(at.a.iis))
-	for iikey := range at.a.iis {
+	stats := make([]*InvertedIndexPruneStat, at.a.iisCount)
+	for iikey := range stats {
 		select {
 		case <-ctx.Done():
 			return aggStat, ctx.Err()
@@ -1397,7 +1402,7 @@ func (at *AggregatorRoTx) prune(ctx context.Context, tx kv.RwTx, limit uint64, a
 		}
 		stats[iikey] = stat
 	}
-	for iikey := range at.a.iis {
+	for iikey := range stats {
 		aggStat.Indices[at.iis[iikey].ii.FilenameBase] = stats[iikey]
 	}
 
@@ -1493,7 +1498,7 @@ func (a *Aggregator) recalcVisibleFilesMinimaxTxNum() {
 
 func (at *AggregatorRoTx) findMergeRange(maxEndTxNum, stepSize, stepsInFrozenFile uint64) *Ranges {
 	maxSpan := stepSize * stepsInFrozenFile
-	r := &Ranges{invertedIndex: make([]*MergeRange, len(at.a.iis))}
+	r := &Ranges{}
 	commitmentUseReferencedBranches := at.a.Cfg(kv.CommitmentDomain).ReplaceKeysInValues
 	if commitmentUseReferencedBranches {
 		lmrAcc := at.d[kv.AccountsDomain].files.LatestMergedRange(stepSize)
@@ -1550,7 +1555,7 @@ func (at *AggregatorRoTx) findMergeRange(maxEndTxNum, stepSize, stepsInFrozenFil
 	}
 
 	if r.anyDomainValues() { // Prioritize domain value merges: if any domain has pending value merges, skip standalone II merges this round.
-		r.invertedIndex = nil
+		r.invertedIndex = [kv.StandaloneIdxLen]*MergeRange{}
 		return r
 	}
 
@@ -1566,7 +1571,7 @@ func (at *AggregatorRoTx) findMergeRange(maxEndTxNum, stepSize, stepsInFrozenFil
 }
 
 func (at *AggregatorRoTx) mergeFiles(ctx context.Context, files *SelectedStaticFiles, r *Ranges) (mf *MergedFilesV3, err error) {
-	mf = &MergedFilesV3{iis: make([]*FilesItem, len(at.a.iis))}
+	mf = &MergedFilesV3{}
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(at.a.mergeWorkers)
 	closeFiles := true
@@ -1916,7 +1921,7 @@ func (at *AggregatorRoTx) FileStream(name kv.Domain, fromTxNum, toTxNum uint64) 
 type AggregatorRoTx struct {
 	a   *Aggregator
 	d   [kv.DomainLen]*DomainRoTx
-	iis []*InvertedIndexRoTx
+	iis [kv.StandaloneIdxLen]*InvertedIndexRoTx
 
 	_leakID uint64 // set only if TRACE_AGG=true
 }
@@ -1925,12 +1930,11 @@ func (a *Aggregator) BeginFilesRo() *AggregatorRoTx {
 	ac := &AggregatorRoTx{
 		a:       a,
 		_leakID: a.leakDetector.Add(),
-		iis:     make([]*InvertedIndexRoTx, len(a.iis)),
 	}
 
 	a.visibleFilesLock.RLock()
-	for id, ii := range a.iis {
-		ac.iis[id] = ii.BeginFilesRo()
+	for id := 0; id < a.iisCount; id++ {
+		ac.iis[id] = a.iis[id].BeginFilesRo()
 	}
 	for id, d := range a.d {
 		if d != nil {

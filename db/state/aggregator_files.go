@@ -24,7 +24,7 @@ type SelectedStaticFiles struct {
 	d     [kv.DomainLen][]*FilesItem
 	dHist [kv.DomainLen][]*FilesItem
 	dIdx  [kv.DomainLen][]*FilesItem
-	ii    [][]*FilesItem
+	ii    [kv.StandaloneIdxLen][]*FilesItem
 }
 
 func (sf *SelectedStaticFiles) DomainFiles(name kv.Domain) []*FilesItem {
@@ -44,12 +44,12 @@ func (sf *SelectedStaticFiles) InvertedIndexFiles(id int) []*FilesItem {
 }
 
 func (sf *SelectedStaticFiles) Close() {
-	clist := make([][]*FilesItem, 0, int(kv.DomainLen)+len(sf.ii))
+	clist := make([][]*FilesItem, 0, int(kv.DomainLen)+kv.StandaloneIdxLen)
 	for id := range sf.d {
 		clist = append(clist, sf.d[id], sf.dIdx[id], sf.dHist[id])
 	}
 
-	clist = append(clist, sf.ii...)
+	clist = append(clist, sf.ii[:]...)
 	for _, group := range clist {
 		for _, item := range group {
 			if item != nil {
@@ -65,7 +65,7 @@ func (sf *SelectedStaticFiles) Close() {
 }
 
 func (at *AggregatorRoTx) FilesInRange(r *Ranges) (*SelectedStaticFiles, error) {
-	sf := &SelectedStaticFiles{ii: make([][]*FilesItem, len(r.invertedIndex))}
+	sf := &SelectedStaticFiles{}
 	for id := range at.d {
 		if at.d[id].d.Disable {
 			continue
@@ -88,7 +88,7 @@ func (at *AggregatorRoTx) FilesInRange(r *Ranges) (*SelectedStaticFiles, error) 
 }
 
 func (at *AggregatorRoTx) InvertedIndicesLen() int {
-	return len(at.iis)
+	return at.a.iisCount
 }
 
 func (at *AggregatorRoTx) InvertedIndexName(id int) kv.InvertedIdx {
@@ -99,7 +99,7 @@ type MergedFilesV3 struct {
 	d     [kv.DomainLen]*FilesItem
 	dHist [kv.DomainLen]*FilesItem
 	dIdx  [kv.DomainLen]*FilesItem
-	iis   []*FilesItem
+	iis   [kv.StandaloneIdxLen]*FilesItem
 }
 
 func (mf MergedFilesV3) FilePaths(relative string) (fPaths []string) {
@@ -132,7 +132,7 @@ func (mf *MergedFilesV3) Close() {
 	for id := range mf.d {
 		clist = append(clist, mf.d[id], mf.dHist[id], mf.dIdx[id])
 	}
-	clist = append(clist, mf.iis...)
+	clist = append(clist, mf.iis[:]...)
 	for _, item := range clist {
 		if item != nil {
 			if item.decompressor != nil {

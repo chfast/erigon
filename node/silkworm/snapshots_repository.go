@@ -173,8 +173,8 @@ func (r *SnapshotsRepository) updateState(stateTx *state.AggregatorRoTx) error {
 	for i := 0; i < len(allDomainRanges); i++ {
 		allDomainRanges[i] = domainRanges(kv.Domain(i))
 	}
-	iiRanges := make([]*state.MergeRange, stateTx.InvertedIndicesLen())
-	for i := 0; i < len(iiRanges); i++ {
+	var iiRanges [kv.StandaloneIdxLen]*state.MergeRange
+	for i := 0; i < stateTx.InvertedIndicesLen(); i++ {
 		iiRanges[i] = mergeRange
 	}
 	ranges := state.NewRanges(allDomainRanges, iiRanges)
