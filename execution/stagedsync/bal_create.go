@@ -61,7 +61,9 @@ func ProcessBAL(tx kv.TemporalRwTx, h *types.Header, vio *state.VersionedIO, dat
 	if err := bal.ValidateMaxItems(h.GasLimit); err != nil {
 		return fmt.Errorf("%w, block %d: %w", rules.ErrInvalidBlock, blockNum, err)
 	}
-	log.Debug("bal", "blockNum", blockNum, "hash", bal.Hash())
+	log.Debug("bal", "blockNum", blockNum, "hash", bal.Hash(),
+		"computedAccounts", len(bal), "maxTxIndex", vio.Len()-1,
+		"blockHash", blockHash)
 	if h.BlockAccessListHash == nil {
 		return fmt.Errorf("block %d: missing block access list hash", blockNum)
 	}
@@ -95,11 +97,21 @@ func ProcessBAL(tx kv.TemporalRwTx, h *types.Header, vio *state.VersionedIO, dat
 	// without a stored BAL body (HasBAL=false), so the computed BAL is accurate.
 	if headerBALHash != bal.Hash() {
 		// Log per-tx IO stats from the VersionedIO to help diagnose index mismatches.
+		storedMatchesHeader := "no-stored-bal"
+		if dbBALBytes != nil {
+			if dbBAL2, decErr := types.DecodeBlockAccessListBytes(dbBALBytes); decErr == nil && dbBAL2 != nil {
+				storedMatchesHeader = fmt.Sprintf("%v", dbBAL2.Hash() == headerBALHash)
+			}
+		}
 		if vio != nil {
 			maxTx := vio.Len() - 1
 			log.Warn("BAL mismatch: blockIO stats",
 				"block", blockNum,
+				"blockHash", blockHash,
 				"maxTxIndex", maxTx,
+				"computedAccounts", len(bal),
+				"headerBALHash", headerBALHash,
+				"storedBALMatchesHeader", storedMatchesHeader,
 				"totalReads", vio.ReadCount(),
 				"totalWrites", vio.WriteCount())
 			// Log first few txIndex write counts
