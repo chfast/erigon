@@ -76,10 +76,10 @@ func (at *AggregatorRoTx) FilesInRange(r *Ranges) (*SelectedStaticFiles, error) 
 		sf.d[id], sf.dIdx[id], sf.dHist[id] = at.d[id].staticFilesInRange(r.domain[id])
 	}
 	for id, rng := range r.invertedIndex {
-		if at.iis[id].ii.Disable {
+		if rng == nil || at.iis[id] == nil || at.iis[id].ii.Disable {
 			continue
 		}
-		if rng == nil || !rng.needMerge {
+		if !rng.needMerge {
 			continue
 		}
 		sf.ii[id] = at.iis[id].staticFilesInRange(rng.from, rng.to)

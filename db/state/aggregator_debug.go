@@ -63,6 +63,9 @@ func (ac *aggDirtyFilesRoTx) MadvNormal() *aggDirtyFilesRoTx {
 		}
 	}
 	for _, ii := range ac.ii {
+		if ii == nil {
+			continue
+		}
 		for _, f := range ii.files {
 			f.MadvNormal()
 		}
@@ -82,6 +85,9 @@ func (ac *aggDirtyFilesRoTx) DisableReadAhead() {
 		}
 	}
 	for _, ii := range ac.ii {
+		if ii == nil {
+			continue
+		}
 		for _, f := range ii.files {
 			f.DisableReadAhead()
 		}
@@ -99,6 +105,9 @@ func (ac *aggDirtyFilesRoTx) FilesWithMissedAccessors() (mf *MissedAccessorAggFi
 		mf.domain[d.d.Name] = d.filesWithMissedAccessors(domainDL, accessorDL)
 	}
 	for _, ii := range ac.ii {
+		if ii == nil {
+			continue
+		}
 		mf.ii[ii.ii.Name] = ii.filesWithMissedAccessors(accessorDL)
 	}
 	return
@@ -113,6 +122,9 @@ func (ac *aggDirtyFilesRoTx) Close() {
 	}
 
 	for _, ii := range ac.ii {
+		if ii == nil {
+			continue
+		}
 		ii.Close()
 	}
 	ac.agg = nil

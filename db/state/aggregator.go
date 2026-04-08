@@ -218,6 +218,9 @@ func (a *Aggregator) RegisterII(cfg statecfg.InvIdxCfg, salt *uint32, dirs datad
 	return nil
 }
 
+// StandaloneIIs returns a slice of the registered standalone inverted indices.
+func (a *Aggregator) StandaloneIIs() []*InvertedIndex { return a.iis[:a.iisCount] }
+
 func (a *Aggregator) OnFilesChange(onChange, onDel kv.OnFilesChange) {
 	a.onFilesChange = onChange
 	a.onFilesDelete = onDel
@@ -249,7 +252,7 @@ func (a *Aggregator) reloadSalt() error {
 		}
 	}
 
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		if ii != nil {
 			ii.salt.Store(salt)
 		}
@@ -283,7 +286,7 @@ func (a *Aggregator) ReloadErigonDBSettings(noDownloader bool) error {
 				d.History.InvertedIndex.setStepSize(a.stepSize, a.stepsInFrozenFile)
 			}
 		}
-		for _, ii := range a.iis {
+		for _, ii := range a.StandaloneIIs() {
 			if ii != nil {
 				ii.setStepSize(a.stepSize, a.stepsInFrozenFile)
 			}
@@ -316,7 +319,7 @@ func (a *Aggregator) ConfigureDomains() error {
 				d.DisableFsync()
 			}
 		}
-		for _, ii := range a.iis {
+		for _, ii := range a.StandaloneIIs() {
 			if ii != nil {
 				ii.DisableFsync()
 			}
@@ -468,7 +471,7 @@ func (a *Aggregator) openFolder() error {
 			return d.openFolder(scanDirsRes)
 		})
 	}
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		if ii.Disable {
 			continue
 		}
@@ -526,7 +529,7 @@ func (a *Aggregator) closeDirtyFiles() {
 			d.Close()
 		}()
 	}
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		if ii == nil {
 			continue
 		}
@@ -566,7 +569,7 @@ func (a *Aggregator) SetCompressWorkers(i int) {
 			d.History.InvertedIndex.CompressorCfg.Workers = i
 		}
 	}
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		ii.CompressorCfg.Workers = i
 	}
 }
@@ -585,7 +588,7 @@ func (a *Aggregator) SetBuildAccessorsWorkers(i int) {
 			d.History.InvertedIndex.BuildAccessorsWorkers = i
 		}
 	}
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		ii.BuildAccessorsWorkers = i
 	}
 }
@@ -647,7 +650,7 @@ func (at *AggregatorRoTx) AllFiles() VisibleFiles {
 	for _, d := range at.d {
 		res = append(res, d.Files()...)
 	}
-	for _, ii := range at.iis {
+	for _, ii := range at.standaloneIIs() {
 		res = append(res, ii.Files()...)
 	}
 	return res
@@ -680,7 +683,7 @@ func (a *Aggregator) LS() {
 		doLS(d.History.dirtyFiles)
 		doLS(d.History.InvertedIndex.dirtyFiles)
 	}
-	for _, d := range a.iis {
+	for _, d := range a.StandaloneIIs() {
 		doLS(d.dirtyFiles)
 	}
 }
@@ -739,7 +742,7 @@ func (a *Aggregator) BuildMissedAccessors(ctx context.Context, workers int) erro
 		d.BuildMissedAccessors(ctx, g, ps, missedFilesItems.domain[d.Name])
 	}
 
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		ii.BuildMissedAccessors(ctx, g, ps, missedFilesItems.ii[ii.Name])
 	}
 
@@ -853,7 +856,7 @@ func (a *Aggregator) buildFiles(ctx context.Context, step kv.Step) error {
 	closeCollations = false
 
 	// indices are built concurrently
-	for iikey, ii := range a.iis {
+	for iikey, ii := range a.StandaloneIIs() {
 		if ii.Disable {
 			continue
 		}
@@ -1053,7 +1056,7 @@ func (a *Aggregator) IntegrateDirtyFiles(sf *AggV3StaticFiles, txNumFrom, txNumT
 	for id, d := range a.d {
 		d.integrateDirtyFiles(sf.d[id], txNumFrom, txNumTo)
 	}
-	for id, ii := range a.iis {
+	for id, ii := range a.StandaloneIIs() {
 		ii.integrateDirtyFiles(sf.ivfs[id], txNumFrom, txNumTo)
 	}
 
@@ -1129,7 +1132,7 @@ func (at *AggregatorRoTx) CanPrune(tx kv.Tx, untilTx uint64) bool {
 			return true
 		}
 	}
-	for _, ii := range at.iis {
+	for _, ii := range at.standaloneIIs() {
 		if ii.CanPrune(tx, untilTx) {
 			return true
 		}
@@ -1235,7 +1238,7 @@ func (at *AggregatorRoTx) stepsRangeInDBAsStr(tx kv.Tx) string {
 		a1, a2 := dt.stepsRangeInDB(tx)
 		steps = append(steps, fmt.Sprintf("%s:%.1f", dt.d.FilenameBase, a2-a1))
 	}
-	for _, iit := range at.iis {
+	for _, iit := range at.standaloneIIs() {
 		a1, a2 := iit.stepsRangeInDB(tx)
 		valPruneFinished := "prune finished"
 		if v, _ := GetPruneValProgress(tx, []byte(iit.ii.ValuesTable)); v.ValueProgress != prune.Done || v.KeyProgress != prune.Done {
@@ -1428,7 +1431,7 @@ func (a *Aggregator) FilesAmount() (res []int) {
 	for _, d := range a.d {
 		res = append(res, d.dirtyFiles.Len())
 	}
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		res = append(res, ii.dirtyFiles.Len())
 	}
 	return res
@@ -1482,7 +1485,7 @@ func (a *Aggregator) recalcVisibleFiles(toTxNum uint64) {
 		}
 		d.reCalcVisibleFiles(toTxNum)
 	}
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		if ii == nil {
 			continue
 		}
@@ -1559,7 +1562,7 @@ func (at *AggregatorRoTx) findMergeRange(maxEndTxNum, stepSize, stepsInFrozenFil
 		return r
 	}
 
-	for id, ii := range at.iis {
+	for id, ii := range at.standaloneIIs() {
 		if ii.ii.Disable {
 			continue
 		}
@@ -1633,7 +1636,7 @@ func (at *AggregatorRoTx) mergeFiles(ctx context.Context, files *SelectedStaticF
 	}
 
 	for id, rng := range r.invertedIndex {
-		if at.iis[id].ii.Disable {
+		if rng == nil || at.iis[id] == nil || at.iis[id].ii.Disable {
 			continue
 		}
 
@@ -1672,7 +1675,7 @@ func (a *Aggregator) IntegrateMergedDirtyFiles(in *MergedFilesV3) {
 		d.integrateMergedDirtyFiles(in.d[id], in.dIdx[id], in.dHist[id])
 	}
 
-	for id, ii := range a.iis {
+	for id, ii := range a.StandaloneIIs() {
 		if ii.Disable {
 			continue
 		}
@@ -1702,7 +1705,7 @@ func (a *Aggregator) cleanAfterMerge(in *MergedFilesV3) {
 			deleted = append(deleted, d.cleanAfterMerge(in.d[id], in.dHist[id], in.dIdx[id], dryRun)...)
 		}
 	}
-	for id, ii := range at.iis {
+	for id, ii := range at.standaloneIIs() {
 		if ii.ii.Disable {
 			continue
 		}
@@ -1726,7 +1729,7 @@ func (a *Aggregator) cleanAfterMerge(in *MergedFilesV3) {
 			d.cleanAfterMerge(in.d[id], in.dHist[id], in.dIdx[id], dryRun)
 		}
 	}
-	for id, ii := range at.iis {
+	for id, ii := range at.standaloneIIs() {
 		if ii.ii.Disable {
 			continue
 		}
@@ -1946,7 +1949,8 @@ func (a *Aggregator) BeginFilesRo() *AggregatorRoTx {
 	return ac
 }
 
-func (at *AggregatorRoTx) Dirs() datadir.Dirs { return at.a.dirs }
+func (at *AggregatorRoTx) Dirs() datadir.Dirs                  { return at.a.dirs }
+func (at *AggregatorRoTx) standaloneIIs() []*InvertedIndexRoTx { return at.iis[:at.a.iisCount] }
 
 func (at *AggregatorRoTx) DomainProgress(name kv.Domain, tx kv.Tx) uint64 {
 	d := at.d[name]
@@ -2049,7 +2053,7 @@ func (at *AggregatorRoTx) Unwind(ctx context.Context, tx kv.RwTx, txNumUnwindTo 
 			return err
 		}
 	}
-	for _, ii := range at.iis {
+	for _, ii := range at.standaloneIIs() {
 		if err := ii.unwind(ctx, tx, txNumUnwindTo, math.MaxUint64, math.MaxUint64, logEvery, true); err != nil {
 			return err
 		}
@@ -2071,7 +2075,7 @@ func (at *AggregatorRoTx) MadvNormal() *AggregatorRoTx {
 			f.src.MadvNormal()
 		}
 	}
-	for _, ii := range at.iis {
+	for _, ii := range at.standaloneIIs() {
 		for _, f := range ii.files {
 			f.src.MadvNormal()
 		}
@@ -2090,7 +2094,7 @@ func (at *AggregatorRoTx) DisableReadAhead() {
 			f.src.DisableReadAhead()
 		}
 	}
-	for _, ii := range at.iis {
+	for _, ii := range at.standaloneIIs() {
 		for _, f := range ii.files {
 			f.src.DisableReadAhead()
 		}
@@ -2110,7 +2114,7 @@ func (a *Aggregator) MadvNormal() *Aggregator {
 			f.MadvNormal()
 		}
 	}
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		for _, f := range ii.dirtyFiles.Items() {
 			f.MadvNormal()
 		}
@@ -2131,7 +2135,7 @@ func (a *Aggregator) DisableReadAhead() {
 			f.DisableReadAhead()
 		}
 	}
-	for _, ii := range a.iis {
+	for _, ii := range a.StandaloneIIs() {
 		for _, f := range ii.dirtyFiles.Items() {
 			f.DisableReadAhead()
 		}
@@ -2143,16 +2147,16 @@ func (at *AggregatorRoTx) Close() {
 		return
 	}
 	at.a.leakDetector.Del(at._leakID)
-	at.a = nil
 
 	for _, d := range at.d {
 		if d != nil {
 			d.Close()
 		}
 	}
-	for _, ii := range at.iis {
+	for _, ii := range at.standaloneIIs() {
 		ii.Close()
 	}
+	at.a = nil
 }
 
 func lastIdInDB(db kv.RoDB, domain *Domain) (lstInDb kv.Step) {
