@@ -2064,6 +2064,9 @@ func (at *AggregatorRoTx) Unwind(ctx context.Context, tx kv.RwTx, txNumUnwindTo 
 // --- Domain part END ---
 
 func (at *AggregatorRoTx) MadvNormal() *AggregatorRoTx {
+	if at == nil || at.a == nil {
+		return at
+	}
 	for _, d := range at.d {
 		for _, f := range d.files {
 			f.src.MadvNormal()
@@ -2083,6 +2086,9 @@ func (at *AggregatorRoTx) MadvNormal() *AggregatorRoTx {
 	return at
 }
 func (at *AggregatorRoTx) DisableReadAhead() {
+	if at == nil || at.a == nil {
+		return
+	}
 	for _, d := range at.d {
 		for _, f := range d.files {
 			f.src.DisableReadAhead()
