@@ -53,7 +53,11 @@ func equalBitvec(a, b bitvec) bool {
 }
 
 func codeBitmapImpls() map[string]func([]byte) bitvec {
-	return map[string]func([]byte) bitvec{"generic": codeBitmap}
+	impls := map[string]func([]byte) bitvec{"generic": codeBitmapGeneric, "dispatched": codeBitmap}
+	if hasSSE4 {
+		impls["sse4"] = codeBitmapSSE4
+	}
+	return impls
 }
 
 // TestCodeBitmapEquivalence fuzzes the codeBitmap implementations against the reference across
