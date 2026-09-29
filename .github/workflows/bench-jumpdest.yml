@@ -1,0 +1,56 @@
+name: JUMPDEST analysis benchmarks
+
+on:
+  push:
+    branches:
+      - bench/jumpdest-ci
+
+jobs:
+  bench:
+    name: bench (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04-arm, macos-15, ubuntu-24.04]
+    env:
+      BASE: a102803756
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 50
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: |
+          set -eux
+          go install golang.org/x/perf/cmd/benchstat@latest
+          git worktree add ../base "$BASE"
+          {
+            printf 'package vm\n\nimport (\n\t"math/rand"\n\t"testing"\n)\n\n'
+            printf 'func codeBitmapImpls() map[string]func([]byte) bitvec {\n\treturn map[string]func([]byte) bitvec{"generic": codeBitmap}\n}\n\n'
+            sed -n '/^\/\/ BenchmarkJumpdestAnalysisInputs/,$p' execution/vm/analysis_bench_test.go
+          } > ../base/execution/vm/zz_inputs_bench_test.go
+          (cd ../base/execution/vm && go test -c -o "$RUNNER_TEMP/base.test" .)
+          (cd execution/vm && go test -c -o "$RUNNER_TEMP/new.test" .)
+          (cd execution/vm && go test -count=1 -run 'TestCodeBitmap|TestJumpDest|TestValidJumpdest' -v . | grep -E '^(---|ok|FAIL)')
+      - name: Benchmark
+        run: |
+          set -eu
+          cd "$RUNNER_TEMP"
+          for i in $(seq 10); do
+            for v in base new; do
+              ./$v.test -test.run XXX -test.bench '^Benchmark(JumpdestAnalysisEmpty_1200k|JumpdestAnalysis_1200k|JumpdestAnalysisInputs)$' -test.benchtime 0.3s -test.count 1 | grep ^Bench >> r-$v.txt
+            done
+          done
+          sed 's|Inputs/generic/|Inputs/|' r-base.txt > swar.txt
+          grep 'Inputs/generic/' r-new.txt | sed 's|Inputs/generic/|Inputs/|' > generic.txt
+          { grep -v 'Inputs/' r-new.txt; grep -E 'Inputs/(sse4|neon)/' r-new.txt | sed -E 's#Inputs/(sse4|neon)/#Inputs/#'; } > simd.txt
+          {
+            echo "## ${{ matrix.os }} ($(uname -m))"
+            echo '```'
+            "$(go env GOPATH)/bin/benchstat" swar=swar.txt generic=generic.txt simd=simd.txt
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
