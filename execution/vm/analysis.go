@@ -25,6 +25,9 @@ var codeBitmap = func() func([]byte) bitvec {
 	if hasSSE4 {
 		return codeBitmapSSE4
 	}
+	if hasNEON {
+		return codeBitmapNEON
+	}
 	return codeBitmapGeneric
 }()
 
@@ -62,7 +65,22 @@ func codeBitmapSSE4(code []byte) bitvec {
 		tab := sse4TabInit
 		pc = blocks*32 + jumpdestBitmapSSE4(&code[0], blocks, &tab[0], &bits[0])
 	}
-	for ; pc < len(code); pc++ { // the tail of less than 32 bytes
+	return markJumpdestsTail(code, bits, pc)
+}
+
+func codeBitmapNEON(code []byte) bitvec {
+	bits := make(bitvec, (len(code)+63)/64)
+	pc := 0
+	if blocks := len(code) / 32; blocks > 0 {
+		var tab [224]byte
+		pc = blocks*32 + jumpdestBitmapNEON(&code[0], blocks, &tab[0], &bits[0])
+	}
+	return markJumpdestsTail(code, bits, pc)
+}
+
+// markJumpdestsTail marks the JUMPDESTs of the code tail of less than 32 bytes starting at pc.
+func markJumpdestsTail(code []byte, bits bitvec, pc int) bitvec {
+	for ; pc < len(code); pc++ {
 		if op := OpCode(code[pc]); int8(op) >= int8(PUSH1) {
 			pc += int(op - PUSH1 + 1)
 		} else if op == JUMPDEST {

@@ -14,12 +14,19 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with Erigon. If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !amd64
+//go:build !amd64 && !arm64
 
 package vm
 
-const hasSSE4 = false
+const (
+	hasSSE4 = false
+	hasNEON = false
+)
 
 func jumpdestBitmapSSE4(code *byte, blocks int, tab *byte, out *uint64) (entry int) {
+	panic("unreachable")
+}
+
+func jumpdestBitmapNEON(code *byte, blocks int, tab *byte, out *uint64) (entry int) {
 	panic("unreachable")
 }

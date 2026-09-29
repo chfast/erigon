@@ -57,6 +57,9 @@ func codeBitmapImpls() map[string]func([]byte) bitvec {
 	if hasSSE4 {
 		impls["sse4"] = codeBitmapSSE4
 	}
+	if hasNEON {
+		impls["neon"] = codeBitmapNEON
+	}
 	return impls
 }
 

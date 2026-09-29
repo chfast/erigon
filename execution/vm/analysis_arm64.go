@@ -18,17 +18,17 @@ package vm
 
 import "golang.org/x/sys/cpu"
 
-var hasSSE4 = cpu.X86.HasSSSE3 && cpu.X86.HasSSE41
+const hasSSE4 = false
 
-const hasNEON = false
+var hasNEON = cpu.ARM64.HasASIMD
 
-// jumpdestBitmapSSE4 writes the JUMPDEST bits of the given number (at least 1) of whole 32-byte
+// jumpdestBitmapNEON writes the JUMPDEST bits of the given number (at least 1) of whole 32-byte
 // blocks of code to out (4 bytes per block) and returns the offset past the last block at which the
-// next instruction starts (0..32). tab is a scratch table initialized from sse4TabInit.
+// next instruction starts (0..32). tab is a zeroed 224-byte scratch table.
 //
 //go:noescape
-func jumpdestBitmapSSE4(code *byte, blocks int, tab *byte, out *uint64) (entry int)
+func jumpdestBitmapNEON(code *byte, blocks int, tab *byte, out *uint64) (entry int)
 
-func jumpdestBitmapNEON(code *byte, blocks int, tab *byte, out *uint64) (entry int) {
+func jumpdestBitmapSSE4(code *byte, blocks int, tab *byte, out *uint64) (entry int) {
 	panic("unreachable")
 }
